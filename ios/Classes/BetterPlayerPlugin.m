@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #import "BetterPlayerPlugin.h"
-
+#import <better_player/better_player-Swift.h>
 
 #if !__has_feature(objc_arc)
 #error Code Requires ARC.
@@ -417,6 +417,24 @@ bool _remoteCommandsInitialized = false;
             [player setMixWithOthers:[argsMap[@"mixWithOthers"] boolValue]];
         } else if ([@"clearCache" isEqualToString:call.method]){
             [KTVHTTPCache cacheDeleteAllCaches];
+        } else if ([@"downloadAsset" isEqualToString:call.method]) {
+            NSString* url = argsMap[@"url"];
+            NSString* downloadData = argsMap[@"downloadData"];
+            
+            NSString* name = [NSString stringWithFormat:@"better_player_channel/downloadEvents%@", url];
+            FlutterEventChannel* eventChannel = [FlutterEventChannel
+                                                 eventChannelWithName:name
+                                                 binaryMessenger:_messenger];
+            
+            [DownloadManager.sharedManager download:[NSURL URLWithString:url] dataString:downloadData eventChannel: eventChannel completionHandler:^(BOOL success){
+                result(nil);
+            }];
+        } else if ([@"downloadedAssets" isEqualToString:call.method]) {
+            result([DownloadManager.sharedManager downloadedAssets]);
+        } else if ([@"removeAsset" isEqualToString:call.method]) {
+            NSString* url = argsMap[@"url"];
+            [DownloadManager.sharedManager deleteAsset:[NSURL URLWithString:url]];
+            result(nil);
         } else {
             result(FlutterMethodNotImplemented);
         }
