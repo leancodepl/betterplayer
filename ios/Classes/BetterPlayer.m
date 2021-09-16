@@ -200,11 +200,13 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     }
     AVPlayerItem* item;
     
-    @try {
-        AVURLAsset* urlAsset = [DownloadManager.sharedManager localAssetWithUrl:url];
-        item = [AVPlayerItem playerItemWithURL:[urlAsset URL]];
-    } @catch (NSException *exception) {
-        NSLog(exception);
+    if (url != nil) {
+        @try {
+            AVURLAsset* urlAsset = [DownloadManager.sharedManager localAssetWithUrl:url];
+            item = [AVPlayerItem playerItemWithURL:[urlAsset URL]];
+        } @catch (NSException *exception) {
+            NSLog(exception);
+        }
     }
     
     if (item == nil) {
