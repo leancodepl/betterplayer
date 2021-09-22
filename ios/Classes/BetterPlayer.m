@@ -222,7 +222,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                 NSURL * certificateNSURL = [[NSURL alloc] initWithString: certificateUrl];
                 NSURL * licenseNSURL = [[NSURL alloc] initWithString: licenseUrl];
                 
-                _loaderDelegate = [[BetterPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL];
+                _loaderDelegate = [[BetterPlayerAssetsLoaderDelegate alloc] initWithLicenseUrl:licenseNSURL certificateUrl:certificateNSURL headers:headers];
                 dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
                 dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
                 [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];
