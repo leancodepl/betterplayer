@@ -188,15 +188,19 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   return transform;
 }
 
-- (void)setDataSourceAsset:(NSString*)asset withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl overriddenDuration:(int) overriddenDuration{
+- (void)setDataSourceAsset:(NSString*)asset withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl overriddenDuration:(int) overriddenDuration drmHeaders:(NSDictionary*)drmHeaders{
     NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
-    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:licenseUrl withHeaders: @{} withCache: false overriddenDuration:overriddenDuration];
+    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:licenseUrl withHeaders: @{} withCache: false overriddenDuration:overriddenDuration drmHeaders:drmHeaders];
 }
 
-- (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache overriddenDuration:(int) overriddenDuration{
+- (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache overriddenDuration:(int) overriddenDuration drmHeaders:(NSDictionary*)drmHeaders{
     _overriddenDuration = 0;
     if (headers == [NSNull null]){
         headers = @{};
+    }
+    
+    if (drmHeaders == [NSNull null]){
+        drmHeaders = @{};
     }
     AVPlayerItem* item;
     
@@ -222,7 +226,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                 NSURL * certificateNSURL = [[NSURL alloc] initWithString: certificateUrl];
                 NSURL * licenseNSURL = [[NSURL alloc] initWithString: licenseUrl];
                 
-                _loaderDelegate = [[BetterPlayerAssetsLoaderDelegate alloc] initWithLicenseUrl:licenseNSURL certificateUrl:certificateNSURL headers:headers];
+                _loaderDelegate = [[BetterPlayerAssetsLoaderDelegate alloc] initWithLicenseUrl:licenseNSURL certificateUrl:certificateNSURL headers:drmHeaders];
                 dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
                 dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
                 [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];

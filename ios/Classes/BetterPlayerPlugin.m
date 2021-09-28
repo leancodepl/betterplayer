@@ -307,6 +307,7 @@ bool _remoteCommandsInitialized = false;
             NSString* certificateUrl = dataSource[@"certificateUrl"];
             NSString* licenseUrl = dataSource[@"licenseUrl"];
             NSDictionary* headers = dataSource[@"headers"];
+            NSDictionary* drmHeaders = dataSource[@"drmHeaders"];
             
             int overriddenDuration = 0;
             if ([dataSource objectForKey:@"overriddenDuration"] != [NSNull null]){
@@ -330,9 +331,9 @@ bool _remoteCommandsInitialized = false;
                 } else {
                     assetPath = [_registrar lookupKeyForAsset:assetArg];
                 }
-                [player setDataSourceAsset:assetPath withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl overriddenDuration:overriddenDuration];
+                [player setDataSourceAsset:assetPath withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl overriddenDuration:overriddenDuration drmHeaders:drmHeaders];
             } else if (uriArg) {
-                [player setDataSourceURL:[NSURL URLWithString:uriArg] withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl withHeaders:headers withCache: useCache overriddenDuration:overriddenDuration];
+                [player setDataSourceURL:[NSURL URLWithString:uriArg] withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl withHeaders:headers withCache: useCache overriddenDuration:overriddenDuration drmHeaders:drmHeaders];
             } else {
                 result(FlutterMethodNotImplemented);
             }
