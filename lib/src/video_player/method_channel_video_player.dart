@@ -437,8 +437,9 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
   }) async* {
     assert(
       drmConfiguration == null ||
-          drmConfiguration.drmType == BetterPlayerDrmType.widevine,
-      'Downloading assets with drm is only supported for widevine.',
+          drmConfiguration.drmType == BetterPlayerDrmType.widevine ||
+          drmConfiguration.drmType == BetterPlayerDrmType.fairplay,
+      'Downloading assets with drm is only supported for widevine and fairplay.',
     );
 
     await _channel.invokeMethod<void>(
@@ -447,6 +448,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
         'url': url,
         'downloadData': jsonEncode(data),
         'licenseUrl': drmConfiguration?.licenseUrl,
+        'certificateUrl': drmConfiguration?.certificateUrl,
         'drmHeaders': drmConfiguration?.headers ?? {},
         'formatHint': videoFormat == null ? null : describeEnum(videoFormat),
       },

@@ -421,19 +421,36 @@ bool _remoteCommandsInitialized = false;
         } else if ([@"downloadAsset" isEqualToString:call.method]) {
             NSString* url = argsMap[@"url"];
             NSString* downloadData = argsMap[@"downloadData"];
+            NSString* licenseUrl = argsMap[@"licenseUrl"];
+            NSString* certificateUrl = argsMap[@"certificateUrl"];
+            NSDictionary* drmHeaders = argsMap[@"drmHeaders"];
             
             NSString* name = [NSString stringWithFormat:@"better_player_channel/downloadEvents%@", url];
             FlutterEventChannel* eventChannel = [FlutterEventChannel
                                                  eventChannelWithName:name
                                                  binaryMessenger:_messenger];
             
-            [DownloadManager.sharedManager download:[NSURL URLWithString:url] dataString:downloadData eventChannel: eventChannel completionHandler:^(BOOL success){
-                result(nil);
-            }];
+            NSURL* licenseNSURL = nil;
+            if (licenseUrl != [NSNull null]) {
+                licenseNSURL = [NSURL URLWithString:licenseUrl];
+            }
+            NSURL* certificateNSURL = nil;
+            if (certificateUrl != [NSNull null]) {
+                certificateNSURL = [NSURL URLWithString:certificateUrl];
+            }
+            if (drmHeaders == [NSNull null]) {
+                drmHeaders = @{};
+            }
+            
+            [DownloadManager.sharedManager download:[NSURL URLWithString:url] dataString:downloadData licenseUrl:licenseNSURL certificateUrl:certificateNSURL drmHeaders:drmHeaders eventChannel: eventChannel result:result];
         } else if ([@"downloadedAssets" isEqualToString:call.method]) {
             result([DownloadManager.sharedManager downloadedAssets]);
         } else if ([@"removeAsset" isEqualToString:call.method]) {
             NSString* url = argsMap[@"url"];
+            
+            // TODO: Remove Content Key from the device
+//            ContentKeyManager.sharedManager.deleteAllPeristableContentKeys(forAsset: asset)
+            
             [DownloadManager.sharedManager deleteAsset:[NSURL URLWithString:url]];
             result(nil);
         } else {

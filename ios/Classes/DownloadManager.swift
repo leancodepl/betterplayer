@@ -12,6 +12,14 @@ import AVFoundation
     /// Internal map of AVAggregateAssetDownloadTask to its corresponding DownloadItem.
     fileprivate var activeDownloadsMap = [AVAggregateAssetDownloadTask: DownloadItem]()
     
+    fileprivate var pendingAssetsMaps = [String: AVURLAsset]()
+    
+    fileprivate var pendingDataStringMap = [String: String]()
+    
+    fileprivate var pendingEventChannelMap = [String: FlutterEventChannel]()
+    
+    fileprivate var pendingFlutterResultMap = [String: FlutterResult]()
+    
     fileprivate let dataPrefix = "Data"
     
     fileprivate let bookmarkPrefix = "Bookmark"
@@ -26,10 +34,13 @@ import AVFoundation
             AVAssetDownloadURLSession(configuration: backgroundConfiguration,
                                       assetDownloadDelegate: self, delegateQueue: OperationQueue.main)
         
+        NotificationCenter.default.addObserver(self, selector: #selector(handleContentKeyDelegateDidSavePersistableContentKey(notification:)), name: .DidSavePersistableContentKey, object: nil)
+        
     }
     
-    @objc public func download(_ url: URL, dataString: String, eventChannel: FlutterEventChannel, completionHandler: ((_ success:Bool) -> Void)?) {
-        if (activeDownloadsMap.keys.contains { key in
+    @objc public func download(_ url: URL, dataString: String, licenseUrl: URL?, certificateUrl: URL?, drmHeaders: Dictionary<String,String>, eventChannel: FlutterEventChannel, result: @escaping FlutterResult) {
+        
+        if (activeDownloadsMap.keys.contains { key in // TODO: check if in pending
             if (key.urlAsset.url == url) {
                 return true
             } else {
@@ -37,12 +48,25 @@ import AVFoundation
             }
         }) {
             // download for this url is already in progress
-            completionHandler?(true)
+            result(nil)
             return
         }
         
         let urlAsset = AVURLAsset(url: url)
         
+        if (licenseUrl != nil && certificateUrl != nil) {
+            ContentKeyManager.shared.contentKeySession.addContentKeyRecipient(urlAsset)
+            ContentKeyManager.shared.requestPersistableContentKeys(forUrl: licenseUrl!)
+            pendingAssetsMaps[licenseUrl!.absoluteString] = urlAsset
+            pendingDataStringMap[licenseUrl!.absoluteString] = dataString
+            pendingEventChannelMap[licenseUrl!.absoluteString] = eventChannel
+            pendingFlutterResultMap[licenseUrl!.absoluteString] = result
+        } else {
+            download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
+        }
+    }
+    
+    private func download(_ urlAsset: AVURLAsset, dataString: String, eventChannel: FlutterEventChannel, result: FlutterResult){
         guard let task =
                 assetDownloadURLSession.aggregateAssetDownloadTask(with: urlAsset,
                                                                    mediaSelections: [urlAsset.preferredMediaSelection],
@@ -56,8 +80,7 @@ import AVFoundation
         activeDownloadsMap[task] = downloadItem
         
         task.resume()
-        completionHandler?(true)
-        
+        result(nil)
     }
     
     /// Returns an AVURLAsset pointing to a file on disk if it exists.
@@ -107,6 +130,20 @@ import AVFoundation
         }
         userDefaults.removeObject(forKey: bookmarkPrefix + url.absoluteString)
         userDefaults.removeObject(forKey: dataPrefix + url.absoluteString)
+    }
+    
+    @objc
+    func handleContentKeyDelegateDidSavePersistableContentKey(notification: Notification) {
+        guard let url = notification.userInfo?["url"] as? URL,
+              let urlAsset = self.pendingAssetsMaps.removeValue(forKey: url.absoluteString),
+              let dataString = self.pendingDataStringMap.removeValue(forKey: url.absoluteString),
+              let eventChannel = self.pendingEventChannelMap.removeValue(forKey: url.absoluteString),
+              let result = self.pendingFlutterResultMap.removeValue(forKey: url.absoluteString) else {
+            print("error while retrieving pending download values")
+            return
+        }
+        
+        download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
     }
     
 }
