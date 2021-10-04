@@ -55,6 +55,11 @@ import AVFoundation
         let urlAsset = AVURLAsset(url: url)
         
         if (licenseUrl != nil && certificateUrl != nil) {
+            var kidMap = UserDefaults.standard.dictionary(forKey: "kid_map") ?? [String: String]()
+            let kid = URLComponents(url: licenseUrl!, resolvingAgainstBaseURL: false)?.queryItems?.first(where: {$0.name == "kid"})?.value
+            kidMap.updateValue(kid, forKey: url.absoluteString)
+            UserDefaults.standard.setValue(kidMap, forKey: "kid_map")
+            
             ContentKeyManager.shared.contentKeySession.addContentKeyRecipient(urlAsset)
             ContentKeyManager.shared.requestPersistableContentKeys(forUrl: licenseUrl!)
             pendingAssetsMaps[licenseUrl!.absoluteString] = urlAsset

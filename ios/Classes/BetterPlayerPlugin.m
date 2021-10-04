@@ -448,8 +448,9 @@ bool _remoteCommandsInitialized = false;
         } else if ([@"removeAsset" isEqualToString:call.method]) {
             NSString* url = argsMap[@"url"];
             
-            // TODO: Remove Content Key from the device
-//            ContentKeyManager.sharedManager.deleteAllPeristableContentKeys(forAsset: asset)
+            NSDictionary* kidMap = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"kid_map"];
+            NSString* kid = [kidMap valueForKey:url];
+            [ContentKeyManager.shared deletePeristableContentKeyWithKid:kid];
             
             [DownloadManager.sharedManager deleteAsset:[NSURL URLWithString:url]];
             result(nil);

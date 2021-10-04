@@ -312,6 +312,20 @@
         
         return FileManager.default.fileExists(atPath: contentKeyURL.path)
     }
+    
+    @objc public func deletePeristableContentKey(withKid kid: String) {
+        
+        guard persistableContentKeyExistsOnDisk(withKid: kid) else { return }
+        
+        let contentKeyURL = urlForPersistableContentKey(withKid: kid)
+        
+        do {
+            try FileManager.default.removeItem(at: contentKeyURL)
+            UserDefaults.standard.removeObject(forKey: "\(kid)-Key")
+        } catch {
+            print("An error occured removing the persisted content key: \(error)")
+        }
+    }
 }
 
 extension Notification.Name {
