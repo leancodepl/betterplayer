@@ -6,6 +6,10 @@
     /// A set containing the currently pending content key identifiers associated with persistable content key requests that have not been completed.
     var pendingPersistableContentKeyIdentifiers = Set<String>()
     
+    var certificatesMap = Dictionary<String, String>()
+    var licensesMap = Dictionary<String, String>()
+    var authHeadersMap = Dictionary<String, String>()
+    
     @objc public let contentKeySession: AVContentKeySession
     let contentKeyDelegateQueue = DispatchQueue(label: "ContentKeyDelegateQueue")
     
@@ -40,6 +44,13 @@
         contentKeySession.setDelegate(self, queue: contentKeyDelegateQueue)
     }
     
+    @objc public func addRecipient(_ asset: AVURLAsset, certificateUrl: String, licenseUrl: String, headers: Dictionary<String,String>) {
+        contentKeySession.addContentKeyRecipient(asset)
+        certificatesMap.updateValue(certificateUrl, forKey: licenseUrl)
+        licensesMap.updateValue(licenseUrl.replacingOccurrences(of: "skd", with: "https"), forKey: licenseUrl)
+        authHeadersMap.updateValue(headers["Authorization"] ?? "", forKey: licenseUrl)
+    }
+    
     public func contentKeySession(_ session: AVContentKeySession, didProvide keyRequest: AVContentKeyRequest) {
         handleStreamingContentKeyRequest(keyRequest: keyRequest)
     }
@@ -64,7 +75,7 @@
         }
         let provideOnlinekey: () -> Void = { () -> Void in
             do {
-                let applicationCertificate = try self.requestApplicationCertificate(assetId: assetIDString)
+                let applicationCertificate = try self.requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
 
                 let completionHandler = { [weak self] (spcData: Data?, error: Error?) in
                     guard let strongSelf = self else { return }
@@ -77,7 +88,7 @@
 
                     do {
                         // Send SPC to Key Server and obtain CKC
-                        let ckcData = try strongSelf.requestContentKeyFromKeySecurityModule(spcData: spcData, assetID: assetIDString)
+                        let ckcData = try strongSelf.requestContentKeyFromKeySecurityModule(spcData: spcData, assetID: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
 
                         /*
                          AVContentKeyResponse is used to represent the data returned from the key server when requesting a key for
@@ -121,15 +132,12 @@
         }
     }
     
-    func requestApplicationCertificate(assetId: String) throws -> Data {
+    func requestApplicationCertificate(assetId: String, contentKeyIdentifier: String) throws -> Data {
         // TODO: use proper urls
         var applicationCertificate: Data? = nil
         do {
-            if (assetId.hasPrefix("willzhanmswest")) {
-                applicationCertificate = try Data(contentsOf: URL(string: "https://openidconnectweb.azurewebsites.net/Content/FPSAC.cer")!)
-            } else {
-                applicationCertificate = try Data(contentsOf: URL(string: "https://audiobibletest.blob.core.windows.net/static/fairplay.cer")!)
-            }
+            let certUrl = certificatesMap.removeValue(forKey: contentKeyIdentifier)
+            applicationCertificate = try Data(contentsOf: URL(string: certUrl!)!)
         } catch {
             print("Error loading FairPlay application certificate: \(error)")
         }
@@ -137,22 +145,20 @@
         return applicationCertificate!
     }
     
-    func requestContentKeyFromKeySecurityModule(spcData: Data, assetID: String) throws -> Data {
+    func requestContentKeyFromKeySecurityModule(spcData: Data, assetID: String, contentKeyIdentifier: String) throws -> Data {
         
         var ckcData: Data? = nil
             
             let semaphore = DispatchSemaphore(value: 0)
             let postString = "spc=\(spcData.base64EncodedString())&assetId=\(assetID)"
-            if let postData = postString.data(using: .ascii, allowLossyConversion: true), // TODO: use proper url
-               let drmServerUrl = URL(string: assetID.hasPrefix("willzhanmswest") ? "https://willzhanmswest.keydelivery.westus.media.azure.net/FairPlay/?kid=bf05ec87-4fff-4488-aa45-828fe8d7f840" :
-                                        "https://audiobibletest.keydelivery.westeurope.media.azure.net/FairPlay/?kid=7a7cf09a-2ce3-41e6-a6f8-fb517759e8f2"
-//                "https://audiobibletest-euwe.streaming.media.azure.net/7cc2d22e-1d9a-4b49-a8e4-3e90d3b0e3a1/47_02_Ewangelia_wg_Sw_Mateusza_%5B.ism/manifest(format=m3u8-aapl,encryption=cbcs-aapl)"
-               ) {
-                var request = URLRequest(url: drmServerUrl)
+            if let postData = postString.data(using: .ascii, allowLossyConversion: true),
+               let drmServerUrl = licensesMap.removeValue(forKey: contentKeyIdentifier)
+                {
+                var request = URLRequest(url: URL(string: drmServerUrl)!)
                 request.httpMethod = "POST"
                 request.setValue(String(postData.count), forHTTPHeaderField: "Content-Length")
                 request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-                // TODO: set token from drmHeaders
+                request.setValue(authHeadersMap.removeValue(forKey: contentKeyIdentifier), forHTTPHeaderField: "Authorization")
                 request.httpBody = postData
                 
                 URLSession.shared.dataTask(with: request) { (data, _, error) in
@@ -182,6 +188,20 @@
     public func contentKeySession(_ session: AVContentKeySession,
                            didUpdatePersistableContentKey persistableContentKey: Data,
                            forContentKeyIdentifier keyIdentifier: Any) {
+        
+        guard let contentKeyIdentifierString = keyIdentifier as? String,
+            let kid = URLComponents(string: contentKeyIdentifierString)?.queryItems?.first(where: {$0.name == "kid"})?.value
+            else {
+                print("Failed to retrieve the assetID from the keyRequest!")
+                return
+        }
+        
+        do {
+            deletePeristableContentKey(withKid: kid)
+            try writePersistableContentKey(contentKey: persistableContentKey, withKid: kid)
+        } catch {
+            print("Failed to write updated persistable content key to disk: \(error.localizedDescription)")
+        }
     }
     
     func handlePersistableContentKeyRequest(keyRequest: AVPersistableContentKeyRequest) {
@@ -214,7 +234,7 @@
                 
                 do {
                     // Send SPC to Key Server and obtain CKC
-                    let ckcData = try strongSelf.requestContentKeyFromKeySecurityModule(spcData: spcData, assetID: assetIDString)
+                    let ckcData = try strongSelf.requestContentKeyFromKeySecurityModule(spcData: spcData, assetID: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
                     
                     let persistentKey = try keyRequest.persistableContentKey(fromKeyVendorResponse: ckcData, options: nil)
                     
@@ -257,7 +277,7 @@
                      Key requests should never be left dangling.
                      Attempt to create a new persistable key.
                      */
-                    let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString)
+                    let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
                     keyRequest.makeStreamingContentKeyRequestData(forApp: applicationCertificate,
                                                                   contentIdentifier: assetIDData,
                                                                   options: [AVContentKeyRequestProtocolVersionsKey: [1]],
@@ -278,7 +298,7 @@
                 return
             }
             
-            let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString)
+            let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
             
             keyRequest.makeStreamingContentKeyRequestData(forApp: applicationCertificate,
                                                           contentIdentifier: assetIDData,

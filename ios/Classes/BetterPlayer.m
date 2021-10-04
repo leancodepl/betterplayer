@@ -208,7 +208,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         @try {
             AVURLAsset* urlAsset = [DownloadManager.sharedManager localAssetWithUrl:url];
             if (urlAsset != nil) {
-                [ContentKeyManager.shared.contentKeySession addContentKeyRecipient:urlAsset];
+                [ContentKeyManager.shared addRecipient:urlAsset certificateUrl:certificateUrl licenseUrl:licenseUrl headers:drmHeaders];
             }
             item = [AVPlayerItem playerItemWithAsset:urlAsset];
         } @catch (NSException *exception) {
@@ -228,7 +228,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             if (certificateUrl && certificateUrl != [NSNull null] && [certificateUrl length] > 0) {
                 NSURL * certificateNSURL = [[NSURL alloc] initWithString: certificateUrl];
                 NSURL * licenseNSURL = [[NSURL alloc] initWithString: licenseUrl];
-                [ContentKeyManager.shared.contentKeySession addContentKeyRecipient:asset];
+                [ContentKeyManager.shared addRecipient:asset certificateUrl:certificateUrl licenseUrl:licenseUrl headers:drmHeaders];
             }
             item = [AVPlayerItem playerItemWithAsset:asset];
         }

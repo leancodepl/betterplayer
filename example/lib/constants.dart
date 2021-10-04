@@ -44,10 +44,12 @@ class Constants {
   static String widevineLicenseUrl =
       "https://proxy.uat.widevine.com/proxy?provider=widevine_test";
   static String fairplayHlsUrl =
-      "https://fps.ezdrm.com/demo/hls/BigBuckBunny_320x180.m3u8";
+      "https://willzhanmswest.streaming.mediaservices.windows.net/e7c76dbb-8e38-44b3-be8c-5c78890c4bb4/MicrosoftElite01.ism/manifest(format=m3u8-aapl,audio-only=false)";
   static String fairplayCertificateUrl =
-      "https://github.com/koldo92/betterplayer/raw/fairplay_ezdrm/example/assets/eleisure.cer";
   static String fairplayLicenseUrl = "https://fps.ezdrm.com/api/licenses/";
+      "https://openidconnectweb.azurewebsites.net/Content/FPSAC.cer";
+  static String fairplayLicenseUrl =
+      "skd://willzhanmswest.keydelivery.westus.media.azure.net/FairPlay/?kid=bf05ec87-4fff-4488-aa45-828fe8d7f840";
   static String catImageUrl =
       "https://img.webmd.com/dtmcms/live/webmd/consumer_assets/site_images/article_thumbnails/other/cat_relaxing_on_patio_other/1800x1200_cat_relaxing_on_patio_other.jpg";
   static String dashStreamUrl =

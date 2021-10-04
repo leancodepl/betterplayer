@@ -60,7 +60,7 @@ import AVFoundation
             kidMap.updateValue(kid, forKey: url.absoluteString)
             UserDefaults.standard.setValue(kidMap, forKey: "kid_map")
             
-            ContentKeyManager.shared.contentKeySession.addContentKeyRecipient(urlAsset)
+            ContentKeyManager.shared.addRecipient(urlAsset, certificateUrl: certificateUrl!.absoluteString, licenseUrl: licenseUrl!.absoluteString, headers: drmHeaders)
             ContentKeyManager.shared.requestPersistableContentKeys(forUrl: licenseUrl!)
             pendingAssetsMaps[licenseUrl!.absoluteString] = urlAsset
             pendingDataStringMap[licenseUrl!.absoluteString] = dataString
