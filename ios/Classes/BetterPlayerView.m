@@ -7,19 +7,19 @@
 // BetterPlayerView.m
 @implementation BetterPlayerView
 - (AVPlayer *)player {
-    return self.playerLayer.player;
+  return self.playerLayer.player;
 }
 
 - (void)setPlayer:(AVPlayer *)player {
-    self.playerLayer.player = player;
+  self.playerLayer.player = player;
 }
 
 // Override UIView method
 + (Class)layerClass {
-    return [AVPlayerLayer class];
+  return [AVPlayerLayer class];
 }
 
 - (AVPlayerLayer *)playerLayer {
-    return (AVPlayerLayer *)self.layer;
+  return (AVPlayerLayer *)self.layer;
 }
 @end
