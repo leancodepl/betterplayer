@@ -66,6 +66,7 @@ import AVFoundation
             pendingDataStringMap[licenseUrl!.absoluteString] = dataString
             pendingEventChannelMap[licenseUrl!.absoluteString] = eventChannel
             pendingFlutterResultMap[licenseUrl!.absoluteString] = result
+            download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
         } else {
             download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
         }
