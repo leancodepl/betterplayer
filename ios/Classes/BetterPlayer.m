@@ -233,7 +233,20 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                withCache:(BOOL)useCache
       overriddenDuration:(int)overriddenDuration
               drmHeaders:(NSDictionary *)drmHeaders {
-  _overriddenDuration = 0;
+
+  if (@available(iOS 10.0, *) && overriddenDuration > 0) {
+    _overriddenDuration = overriddenDuration;
+  } else {
+    _overriddenDuration = 0;
+  }
+
+  if (url == nil) {
+    @throw [NSException
+        exceptionWithName:@"InvalidArgumentException"
+                   reason:@"Nil url passed passed to setDataSourceURL"
+                 userInfo:nil];
+  }
+
   if (headers == [NSNull null]) {
     headers = @{};
   }
@@ -241,49 +254,42 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   if (drmHeaders == [NSNull null]) {
     drmHeaders = @{};
   }
+
   AVPlayerItem *item;
 
-  if (url != nil) {
-    @try {
-      AVURLAsset *urlAsset =
-          [DownloadManager.sharedManager localAssetWithUrl:url];
-      if (urlAsset != nil) {
-        [ContentKeyManager.shared addRecipient:urlAsset
-                                certificateUrl:certificateUrl
-                                    licenseUrl:licenseUrl
-                                       headers:drmHeaders];
-      }
-      item = [AVPlayerItem playerItemWithAsset:urlAsset];
-    } @catch (NSException *exception) {
-      NSLog(exception);
-    }
-  }
+  AVURLAsset *localAsset =
+      [DownloadManager.sharedManager localAssetWithUrl:url];
 
-  if (item == nil) {
-    if (useCache) {
-      [KTVHTTPCache downloadSetAdditionalHeaders:headers];
-      NSURL *proxyURL = [KTVHTTPCache proxyURLWithOriginalURL:url];
-      item = [AVPlayerItem playerItemWithURL:proxyURL];
+  if (localAsset != nil) {
+    if (certificateUrl != [NSNull null] && licenseUrl != [NSNull null]) {
+      [ContentKeyManager.shared addRecipient:localAsset
+                              certificateUrl:certificateUrl
+                                  licenseUrl:licenseUrl
+                                     headers:drmHeaders];
+      [ContentKeyManager.shared requestPersistableContentKeysForUrl:url];
     } else {
-      AVURLAsset *asset = [AVURLAsset
-          URLAssetWithURL:url
-                  options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
-
-      if (certificateUrl && certificateUrl != [NSNull null] &&
-          [certificateUrl length] > 0) {
-        NSURL *certificateNSURL = [[NSURL alloc] initWithString:certificateUrl];
-        NSURL *licenseNSURL = [[NSURL alloc] initWithString:licenseUrl];
-        [ContentKeyManager.shared addRecipient:asset
-                                certificateUrl:certificateUrl
-                                    licenseUrl:licenseUrl
-                                       headers:drmHeaders];
-      }
-      item = [AVPlayerItem playerItemWithAsset:asset];
+      [ContentKeyManager.shared addRecipient:localAsset];
     }
-  }
+    item = [AVPlayerItem playerItemWithAsset:localAsset];
+  } else if (useCache) {
+    [KTVHTTPCache downloadSetAdditionalHeaders:headers];
+    NSURL *proxyURL = [KTVHTTPCache proxyURLWithOriginalURL:url];
+    item = [AVPlayerItem playerItemWithURL:proxyURL];
+  } else {
+    AVURLAsset *asset = [AVURLAsset
+        URLAssetWithURL:url
+                options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
 
-  if (@available(iOS 10.0, *) && overriddenDuration > 0) {
-    _overriddenDuration = overriddenDuration;
+    if (certificateUrl && certificateUrl != [NSNull null] &&
+        [certificateUrl length] > 0) {
+      NSURL *certificateNSURL = [[NSURL alloc] initWithString:certificateUrl];
+      NSURL *licenseNSURL = [[NSURL alloc] initWithString:licenseUrl];
+      [ContentKeyManager.shared addRecipient:asset
+                              certificateUrl:certificateUrl
+                                  licenseUrl:licenseUrl
+                                     headers:drmHeaders];
+    }
+    item = [AVPlayerItem playerItemWithAsset:asset];
   }
 
   return [self setDataSourcePlayerItem:item withKey:key];
@@ -444,22 +450,37 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     }
   } else if (context == presentationSizeContext) {
     [self onReadyToPlay];
-  }
-
-  else if (context == statusContext) {
+  } else if (context == statusContext) {
     AVPlayerItem *item = (AVPlayerItem *)object;
+
     switch (item.status) {
     case AVPlayerItemStatusFailed:
       NSLog(@"Failed to load video:");
       NSLog(item.error.debugDescription);
 
       if (_eventSink != nil) {
-        _eventSink([FlutterError
-            errorWithCode:@"VideoError"
-                  message:[@"Failed to load video: "
-                              stringByAppendingString:
-                                  [item.error localizedDescription]]
-                  details:nil]);
+        NSError *underlyingError =
+            [item.error.userInfo objectForKey:@"NSUnderlyingError"];
+
+        // -42799 - unsupported persistent key format
+        // -42800 - expired persisten key
+        if (underlyingError != [NSNull null] &&
+            (underlyingError.code == -42799 ||
+             underlyingError.code == -42800)) {
+          _eventSink([FlutterError
+              errorWithCode:@"InvalidPersistenKey"
+                    message:[@"Failed to load video: "
+                                stringByAppendingString:
+                                    [item.error localizedDescription]]
+                    details:nil]);
+        } else {
+          _eventSink([FlutterError
+              errorWithCode:@"VideoError"
+                    message:[@"Failed to load video: "
+                                stringByAppendingString:
+                                    [item.error localizedDescription]]
+                    details:nil]);
+        }
       }
       break;
     case AVPlayerItemStatusUnknown:

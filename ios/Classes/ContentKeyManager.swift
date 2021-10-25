@@ -44,6 +44,10 @@
         contentKeySession.setDelegate(self, queue: contentKeyDelegateQueue)
     }
     
+    @objc public func addRecipient(_ asset: AVURLAsset) {
+        contentKeySession.addContentKeyRecipient(asset);
+    }
+
     @objc public func addRecipient(_ asset: AVURLAsset, certificateUrl: String, licenseUrl: String, headers: Dictionary<String,String>) {
         contentKeySession.addContentKeyRecipient(asset)
         certificatesMap.updateValue(certificateUrl, forKey: licenseUrl)
@@ -58,9 +62,6 @@
     public func contentKeySession(_ session: AVContentKeySession, shouldRetry keyRequest: AVContentKeyRequest,
                                   reason retryReason: AVContentKeyRequest.RetryReason) -> Bool {
         return false
-    }
-    
-    public func contentKeySession(_ session: AVContentKeySession, contentKeyRequest keyRequest: AVContentKeyRequest, didFailWithError err: Error) {
     }
     
     func handleStreamingContentKeyRequest(keyRequest: AVContentKeyRequest) {
@@ -220,6 +221,32 @@
         }
         
         do {
+            let provideOfflinekey: () -> Void = { () -> Void in
+                if self.persistableContentKeyExistsOnDisk(withKid: kid) {
+                    
+                    let urlToPersistableKey = self.urlForPersistableContentKey(withKid: kid)
+                    
+                    guard let contentKey = FileManager.default.contents(atPath: urlToPersistableKey.path) else {
+                        // Error Handling.
+                        
+                        self.pendingPersistableContentKeyIdentifiers.remove(contentKeyIdentifierString)
+                        
+                        keyRequest.processContentKeyResponseError(NSError());
+                        return
+                    }
+                    
+                    /*
+                     Create an AVContentKeyResponse from the persistent key data to use for requesting a key for
+                     decrypting content.
+                     */
+                    let keyResponse = AVContentKeyResponse(fairPlayStreamingKeyResponseData: contentKey)
+                    
+                    // Provide the content key response to make protected content available for processing.
+                    keyRequest.processContentKeyResponse(keyResponse)
+                } else {
+                   keyRequest.processContentKeyResponseError(NSError());
+                }
+            }
 
             let completionHandler = { [weak self] (spcData: Data?, error: Error?) in
                 guard let strongSelf = self else { return }
@@ -257,53 +284,19 @@
                     
                     strongSelf.pendingPersistableContentKeyIdentifiers.remove(contentKeyIdentifierString)
                 } catch {
-                    keyRequest.processContentKeyResponseError(error)
-                    
-                    strongSelf.pendingPersistableContentKeyIdentifiers.remove(contentKeyIdentifierString)
+                    provideOfflinekey()
                 }
             }
-            
-            // Check to see if we can satisfy this key request using a saved persistent key file.
-            if persistableContentKeyExistsOnDisk(withKid: kid) {
+            if (certificatesMap[contentKeyIdentifierString] != nil) {
+                let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
                 
-                let urlToPersistableKey = urlForPersistableContentKey(withKid: kid)
-                
-                guard let contentKey = FileManager.default.contents(atPath: urlToPersistableKey.path) else {
-                    // Error Handling.
-                    
-                    pendingPersistableContentKeyIdentifiers.remove(contentKeyIdentifierString)
-                    
-                    /*
-                     Key requests should never be left dangling.
-                     Attempt to create a new persistable key.
-                     */
-                    let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
-                    keyRequest.makeStreamingContentKeyRequestData(forApp: applicationCertificate,
-                                                                  contentIdentifier: assetIDData,
-                                                                  options: [AVContentKeyRequestProtocolVersionsKey: [1]],
-                                                                  completionHandler: completionHandler)
-
-                    return
-                }
-                
-                /*
-                 Create an AVContentKeyResponse from the persistent key data to use for requesting a key for
-                 decrypting content.
-                 */
-                let keyResponse = AVContentKeyResponse(fairPlayStreamingKeyResponseData: contentKey)
-                
-                // Provide the content key response to make protected content available for processing.
-                keyRequest.processContentKeyResponse(keyResponse)
-                
-                return
+                keyRequest.makeStreamingContentKeyRequestData(forApp: applicationCertificate,
+                                                              contentIdentifier: assetIDData,
+                                                              options: [AVContentKeyRequestProtocolVersionsKey: [1]],
+                                                              completionHandler: completionHandler)
+            } else {
+                provideOfflinekey()
             }
-            
-            let applicationCertificate = try requestApplicationCertificate(assetId: assetIDString, contentKeyIdentifier: contentKeyIdentifierString)
-            
-            keyRequest.makeStreamingContentKeyRequestData(forApp: applicationCertificate,
-                                                          contentIdentifier: assetIDData,
-                                                          options: [AVContentKeyRequestProtocolVersionsKey: [1]],
-                                                          completionHandler: completionHandler)
         } catch {
             print("Failure responding to an AVPersistableContentKeyRequest when attemping to determine if key is already available for use on disk.")
         }
@@ -317,7 +310,6 @@
     }
     
     func writePersistableContentKey(contentKey: Data, withKid kid: String) throws {
-        
         let fileURL = urlForPersistableContentKey(withKid: kid)
         
         try contentKey.write(to: fileURL, options: Data.WritingOptions.atomicWrite)
@@ -355,3 +347,4 @@ extension Notification.Name {
      */
     static let DidSavePersistableContentKey = Notification.Name("ContentKeyDelegateDidSavePersistableContentKey")
 }
+

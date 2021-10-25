@@ -44,12 +44,14 @@ class Constants {
   static String widevineLicenseUrl =
       "https://proxy.uat.widevine.com/proxy?provider=widevine_test";
   static String fairplayHlsUrl =
-      "https://willzhanmswest.streaming.mediaservices.windows.net/e7c76dbb-8e38-44b3-be8c-5c78890c4bb4/MicrosoftElite01.ism/manifest(format=m3u8-aapl,audio-only=false)";
+      "https://audiobibletest-euwe.streaming.media.azure.net/c09b1656-faf4-4339-876c-787723e7b6c7/13_01_Pierwsza_Ksiega_Kronik_Roz.ism/manifest(format=m3u8-aapl,encryption=cbcs-aapl)";
+  // "https://willzhanmswest.streaming.mediaservices.windows.net/e7c76dbb-8e38-44b3-be8c-5c78890c4bb4/MicrosoftElite01.ism/manifest(format=m3u8-aapl,audio-only=false)";
   static String fairplayCertificateUrl =
-  static String fairplayLicenseUrl = "https://fps.ezdrm.com/api/licenses/";
-      "https://openidconnectweb.azurewebsites.net/Content/FPSAC.cer";
+      "https://audiobibletest.blob.core.windows.net/static/fairplay.cer";
+  // "https://openidconnectweb.azurewebsites.net/Content/FPSAC.cer";
   static String fairplayLicenseUrl =
-      "skd://willzhanmswest.keydelivery.westus.media.azure.net/FairPlay/?kid=bf05ec87-4fff-4488-aa45-828fe8d7f840";
+      "https://audiobibletest.keydelivery.westeurope.media.azure.net/FairPlay/?kid=b41d364b-433b-48de-9d1e-5f866f28b8c3";
+  // "skd://willzhanmswest.keydelivery.westus.media.azure.net/FairPlay/?kid=bf05ec87-4fff-4488-aa45-828fe8d7f840";
   static String catImageUrl =
       "https://img.webmd.com/dtmcms/live/webmd/consumer_assets/site_images/article_thumbnails/other/cat_relaxing_on_patio_other/1800x1200_cat_relaxing_on_patio_other.jpg";
   static String dashStreamUrl =

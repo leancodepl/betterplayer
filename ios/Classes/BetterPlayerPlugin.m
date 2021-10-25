@@ -343,6 +343,10 @@ bool _remoteCommandsInitialized = false;
       if (headers == nil) {
         headers = @{};
       }
+      if (licenseUrl != [NSNull null]) {
+        licenseUrl = [licenseUrl stringByReplacingOccurrencesOfString:@"https"
+                                                           withString:@"skd"];
+      }
       if (assetArg) {
         NSString *assetPath;
         NSString *package = dataSource[@"package"];
@@ -473,7 +477,10 @@ bool _remoteCommandsInitialized = false;
 
       NSURL *licenseNSURL = nil;
       if (licenseUrl != [NSNull null]) {
-        licenseNSURL = [NSURL URLWithString:licenseUrl];
+        licenseNSURL = [NSURL
+            URLWithString:[licenseUrl
+                              stringByReplacingOccurrencesOfString:@"https"
+                                                        withString:@"skd"]];
       }
       NSURL *certificateNSURL = nil;
       if (certificateUrl != [NSNull null]) {
