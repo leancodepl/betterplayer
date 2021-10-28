@@ -181,8 +181,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// Constructs a [VideoPlayerController] and creates video controller on platform side.
   VideoPlayerController({
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
+    bool autoCreate = true,
   }) : super(VideoPlayerValue(duration: null)) {
-    _create();
+    if (autoCreate) {
+      create();
+    }
   }
 
   final StreamController<VideoEvent> videoEventStreamController =
@@ -206,7 +209,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   int? get textureId => _textureId;
 
   /// Attempts to open the given [dataSource] and load metadata about the video.
-  Future<void> _create() async {
+  Future<void> create() async {
+    if (_created) {
+      return;
+    }
     _textureId = await _videoPlayerPlatform.create(
       bufferingConfiguration: bufferingConfiguration,
     );
