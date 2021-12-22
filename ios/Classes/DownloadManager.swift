@@ -140,16 +140,17 @@ import AVFoundation
     
     @objc
     func handleContentKeyDelegateDidSavePersistableContentKey(notification: Notification) {
-        guard let url = notification.userInfo?["url"] as? URL,
-              let urlAsset = self.pendingAssetsMaps.removeValue(forKey: url.absoluteString),
-              let dataString = self.pendingDataStringMap.removeValue(forKey: url.absoluteString),
-              let eventChannel = self.pendingEventChannelMap.removeValue(forKey: url.absoluteString),
-              let result = self.pendingFlutterResultMap.removeValue(forKey: url.absoluteString) else {
+        do {
+            let url = notification.userInfo?["url"] as! URL
+            let urlAsset = self.pendingAssetsMaps.removeValue(forKey: url.absoluteString)!
+            let dataString = self.pendingDataStringMap.removeValue(forKey: url.absoluteString)!
+            let eventChannel = self.pendingEventChannelMap.removeValue(forKey: url.absoluteString)!
+            let result = self.pendingFlutterResultMap.removeValue(forKey: url.absoluteString)!
+            
+            download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
+        } catch{
             print("error while retrieving pending download values")
-            return
         }
-        
-        download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
     }
     
 }
@@ -183,11 +184,15 @@ extension DownloadManager: AVAssetDownloadDelegate {
             }
         } else {
             do {
-                let bookmark = try localURL!.bookmarkData()
-                let urlString = (downloadItem?.urlAsset.url.absoluteString)!
+                let bookmark = try localURL?.bookmarkData()
+                let urlString = (downloadItem?.urlAsset.url.absoluteString)
                 
-                userDefaults.set(bookmark, forKey: bookmarkPrefix + urlString)
-                userDefaults.set(downloadItem?.downloadData, forKey: dataPrefix + urlString)
+                if(!(bookmark==nil || urlString==nil)){
+                    userDefaults.set(bookmark, forKey: bookmarkPrefix + urlString!)
+                    userDefaults.set(downloadItem?.downloadData, forKey: dataPrefix + urlString!)
+                }else {
+                    print("Failed to create bookmarkData for download URL.")
+                }
             } catch {
                 print("Failed to create bookmarkData for download URL.")
             }
