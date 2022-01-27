@@ -274,7 +274,10 @@
                         self.pendingPersistableContentKeyIdentifiers.remove(
                             contentKeyIdentifierString)
 
-                        keyRequest.processContentKeyResponseError(NSError())
+                        keyRequest.processContentKeyResponseError(
+                            NSError.init(
+                                domain: "handlePersistableContentKeyRequest", code: 1, userInfo: nil
+                            ))
                         return
                     }
 
@@ -288,7 +291,10 @@
                     // Provide the content key response to make protected content available for processing.
                     keyRequest.processContentKeyResponse(keyResponse)
                 } else {
-                    keyRequest.processContentKeyResponseError(NSError())
+                    keyRequest.processContentKeyResponseError(
+                        NSError.init(
+                            domain: "handlePersistableContentKeyRequest", code: 2, userInfo: nil
+                        ))
                 }
             }
 

@@ -11,13 +11,7 @@ import Foundation
     /// Internal map of AVAggregateAssetDownloadTask to its corresponding DownloadItem.
     fileprivate var activeDownloadsMap = [AVAggregateAssetDownloadTask: DownloadItem]()
 
-    fileprivate var pendingAssetsMaps = [String: AVURLAsset]()
-
-    fileprivate var pendingDataStringMap = [String: String]()
-
-    fileprivate var pendingEventChannelMap = [String: FlutterEventChannel]()
-
-    fileprivate var pendingFlutterResultMap = [String: FlutterResult]()
+    fileprivate var pendingKeyDataMap = [String: PendingKeyData]()
 
     fileprivate let dataPrefix = "Data"
 
@@ -51,14 +45,11 @@ import Foundation
         eventChannel: FlutterEventChannel,
         result: @escaping FlutterResult
     ) {
-        if (activeDownloadsMap.keys.contains { key in  // TODO: check if in pending
-            if key.urlAsset.url == url {
-                return true
-            } else {
-                return false
-            }
-        }) {
-            // download for this url is already in progress
+        let isInProgress =
+            activeDownloadsMap.keys.contains { $0.urlAsset.url == url }
+            || pendingKeyDataMap.values.contains { $0.asset.url == url }
+
+        if isInProgress {
             result(nil)
             return
         }
@@ -69,25 +60,31 @@ import Foundation
             var kidMap = UserDefaults.standard.dictionary(forKey: "kid_map") ?? [String: String]()
             let kid = URLComponents(url: licenseUrl, resolvingAgainstBaseURL: false)?.queryItems?
                 .first(where: { $0.name == "kid" })?.value
-            kidMap.updateValue(kid, forKey: url.absoluteString)
-            UserDefaults.standard.setValue(kidMap, forKey: "kid_map")
+            if let kid = kid {
+                kidMap.updateValue(kid, forKey: url.absoluteString)
+                UserDefaults.standard.setValue(kidMap, forKey: "kid_map")
+            } else {
+                print("Failed to find kid in licenseUrl: \(licenseUrl)")
+                return
+            }
+
+            pendingKeyDataMap[licenseUrl.absoluteString] = PendingKeyData(
+                asset: urlAsset, dataString: dataString,
+                eventChannel: eventChannel, flutterResult: result)
 
             ContentKeyManager.shared.addRecipient(
                 urlAsset, certificateUrl: certificateUrl.absoluteString,
                 licenseUrl: licenseUrl.absoluteString, headers: drmHeaders)
             ContentKeyManager.shared.requestPersistableContentKeys(forUrl: licenseUrl)
-            pendingAssetsMaps[licenseUrl.absoluteString] = urlAsset
-            pendingDataStringMap[licenseUrl.absoluteString] = dataString
-            pendingEventChannelMap[licenseUrl.absoluteString] = eventChannel
-            pendingFlutterResultMap[licenseUrl.absoluteString] = result
-            download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
         } else {
             download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
         }
     }
 
     private func download(
-        _ urlAsset: AVURLAsset, dataString: String, eventChannel: FlutterEventChannel,
+        _ urlAsset: AVURLAsset,
+        dataString: String,
+        eventChannel: FlutterEventChannel,
         result: FlutterResult
     ) {
         guard
@@ -139,9 +136,8 @@ import Foundation
     @objc public func downloadedAssets() -> [String: String] {
         let userDefaults = UserDefaults.standard
         let downloads =
-            userDefaults.dictionaryRepresentation().filter { key, _ -> Bool in
-                key.hasPrefix(dataPrefix)
-            } as! [String: String]
+            userDefaults.dictionaryRepresentation().filter { $0.key.hasPrefix(dataPrefix) }
+            as! [String: String]
 
         return [String: String](
             uniqueKeysWithValues: downloads.map { key, value in
@@ -166,17 +162,19 @@ import Foundation
 
     @objc
     func handleContentKeyDelegateDidSavePersistableContentKey(notification: Notification) {
-        do {
-            let url = notification.userInfo?["url"] as! URL
-            let urlAsset = pendingAssetsMaps.removeValue(forKey: url.absoluteString)!
-            let dataString = pendingDataStringMap.removeValue(forKey: url.absoluteString)!
-            let eventChannel = pendingEventChannelMap.removeValue(forKey: url.absoluteString)!
-            let result = pendingFlutterResultMap.removeValue(forKey: url.absoluteString)!
-
-            download(urlAsset, dataString: dataString, eventChannel: eventChannel, result: result)
-        } catch {
+        guard
+            let url = notification.userInfo?["url"] as? URL,
+            let pendingKeyData = pendingKeyDataMap.removeValue(forKey: url.absoluteString)
+        else {
             print("error while retrieving pending download values")
+            return
         }
+
+        download(
+            pendingKeyData.asset,
+            dataString: pendingKeyData.dataString,
+            eventChannel: pendingKeyData.eventChannel,
+            result: pendingKeyData.flutterResult)
     }
 }
 
@@ -196,26 +194,27 @@ extension DownloadManager: AVAssetDownloadDelegate {
         let userDefaults = UserDefaults.standard
         let localURL = downloadItem?.localUrl
 
-        if let error = error as NSError? {
-            if error.code == NSURLErrorCancelled {
+        if error != nil {
+            if let localURL = localURL {
                 do {
-                    try FileManager.default.removeItem(at: localURL!)
-                    if let urlString = downloadItem?.urlAsset.url.absoluteString {
-                        userDefaults.removeObject(forKey: bookmarkPrefix + urlString)
-                        userDefaults.removeObject(forKey: dataPrefix + urlString)
-                    }
+                    try FileManager.default.removeItem(at: localURL)
                 } catch {
                     print("An error occured trying to delete the contents on disk for: \(error)")
                 }
             }
+
+            if let urlString = downloadItem?.urlAsset.url.absoluteString {
+                userDefaults.removeObject(forKey: bookmarkPrefix + urlString)
+                userDefaults.removeObject(forKey: dataPrefix + urlString)
+            }
         } else {
             do {
                 let bookmark = try localURL?.bookmarkData()
-                let urlString = (downloadItem?.urlAsset.url.absoluteString)
+                let urlString = downloadItem?.urlAsset.url.absoluteString
 
-                if !(bookmark == nil || urlString == nil) {
-                    userDefaults.set(bookmark, forKey: bookmarkPrefix + urlString!)
-                    userDefaults.set(downloadItem?.downloadData, forKey: dataPrefix + urlString!)
+                if let bookmark = bookmark, let urlString = urlString {
+                    userDefaults.set(bookmark, forKey: bookmarkPrefix + urlString)
+                    userDefaults.set(downloadItem?.downloadData, forKey: dataPrefix + urlString)
                 } else {
                     print("Failed to create bookmarkData for download URL.")
                 }
@@ -227,7 +226,8 @@ extension DownloadManager: AVAssetDownloadDelegate {
 
     /// Method called when the an aggregate download task determines the location this asset will be downloaded to.
     public func urlSession(
-        _ session: URLSession, aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
+        _ session: URLSession,
+        aggregateAssetDownloadTask: AVAggregateAssetDownloadTask,
         willDownloadTo location: URL
     ) {
         activeDownloadsMap[aggregateAssetDownloadTask]?.localUrl = location
@@ -241,7 +241,7 @@ extension DownloadManager: AVAssetDownloadDelegate {
     ) {
         var percentComplete = 0.0
         for value in loadedTimeRanges {
-            let loadedTimeRange: CMTimeRange = value.timeRangeValue
+            let loadedTimeRange = value.timeRangeValue
             percentComplete +=
                 loadedTimeRange.duration.seconds / timeRangeExpectedToLoad.duration.seconds
         }
@@ -250,4 +250,11 @@ extension DownloadManager: AVAssetDownloadDelegate {
             streamHandler.eventSink?(percentComplete * 100)
         }
     }
+}
+
+private struct PendingKeyData {
+    public let asset: AVURLAsset
+    public let dataString: String
+    public let eventChannel: FlutterEventChannel
+    public let flutterResult: FlutterResult
 }
