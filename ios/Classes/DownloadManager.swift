@@ -162,19 +162,24 @@ import Foundation
 
     @objc
     func handleContentKeyDelegateDidSavePersistableContentKey(notification: Notification) {
-        guard
-            let url = notification.userInfo?["url"] as? URL,
-            let pendingKeyData = pendingKeyDataMap.removeValue(forKey: url.absoluteString)
-        else {
-            print("error while retrieving pending download values")
-            return
-        }
+        // This handle can be called from different threads. NotificationCenter runs callbacks in the thread that posted the notification.
+        // Thus we move excecution to the main thread to avoid data races.
 
-        download(
-            pendingKeyData.asset,
-            dataString: pendingKeyData.dataString,
-            eventChannel: pendingKeyData.eventChannel,
-            result: pendingKeyData.flutterResult)
+        DispatchQueue.main.async {
+            guard
+                let url = notification.userInfo?["url"] as? URL,
+                let pendingKeyData = self.pendingKeyDataMap.removeValue(forKey: url.absoluteString)
+            else {
+                print("error while retrieving pending download values")
+                return
+            }
+
+            self.download(
+                pendingKeyData.asset,
+                dataString: pendingKeyData.dataString,
+                eventChannel: pendingKeyData.eventChannel,
+                result: pendingKeyData.flutterResult)
+        }
     }
 }
 
