@@ -172,6 +172,7 @@
     ) throws -> Data {
 
         var ckcData: Data? = nil
+        var ckcError: Error? = nil
 
         let semaphore = DispatchSemaphore(value: 0)
         let postString = "spc=\(spcData.base64EncodedString())&assetId=\(assetID)"
@@ -197,6 +198,7 @@
                     print(
                         "Error encountered while fetching FairPlay license:  \(error?.localizedDescription ?? "Unknown error")"
                     )
+                    ckcError = error
                 }
 
                 semaphore.signal()
@@ -206,7 +208,12 @@
         }
 
         semaphore.wait()
-        return ckcData!
+
+        if let ckcData = ckcData {
+            return ckcData
+        } else {
+            throw ckcError!
+        }
     }
 
     // MARK: PERSISTABLE
