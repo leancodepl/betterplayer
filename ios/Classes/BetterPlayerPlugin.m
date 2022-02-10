@@ -486,6 +486,7 @@ bool _remoteCommandsInitialized = false;
     } else if ([@"removeAsset" isEqualToString:call.method]) {
       NSString *url = argsMap[@"url"];
 
+        // TODO: this handling is wrong, we should first check whether downloading is happening already
       NSDictionary *kidMap =
           [NSUserDefaults.standardUserDefaults dictionaryForKey:@"kid_map"];
       NSString *kid = [kidMap valueForKey:url];
