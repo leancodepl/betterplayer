@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #import "BetterPlayer.h"
+#import <better_player/better_player-Swift.h>
 
 static void* timeRangeContext = &timeRangeContext;
 static void* statusContext = &statusContext;
@@ -198,24 +199,36 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         headers = @{};
     }
     AVPlayerItem* item;
-    if (useCache){
-        [KTVHTTPCache downloadSetAdditionalHeaders:headers];
-        NSURL *proxyURL = [KTVHTTPCache proxyURLWithOriginalURL:url];
-        item = [AVPlayerItem playerItemWithURL:proxyURL];
-    } else {
-        AVURLAsset* asset = [AVURLAsset URLAssetWithURL:url
-                                                options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
-        
-        if (certificateUrl && certificateUrl != [NSNull null] && [certificateUrl length] > 0) {
-            NSURL * certificateNSURL = [[NSURL alloc] initWithString: certificateUrl];
-            NSURL * licenseNSURL = [[NSURL alloc] initWithString: licenseUrl];
-            
-            _loaderDelegate = [[BetterPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL];
-            dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
-            dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
-            [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];
+    
+    if (url != nil) {
+        @try {
+            AVURLAsset* urlAsset = [DownloadManager.sharedManager localAssetWithUrl:url];
+            item = [AVPlayerItem playerItemWithURL:[urlAsset URL]];
+        } @catch (NSException *exception) {
+            NSLog(exception);
         }
-        item = [AVPlayerItem playerItemWithAsset:asset];
+    }
+    
+    if (item == nil) {
+        if (useCache){
+            [KTVHTTPCache downloadSetAdditionalHeaders:headers];
+            NSURL *proxyURL = [KTVHTTPCache proxyURLWithOriginalURL:url];
+            item = [AVPlayerItem playerItemWithURL:proxyURL];
+        } else {
+            AVURLAsset* asset = [AVURLAsset URLAssetWithURL:url
+                                                    options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
+            
+            if (certificateUrl && certificateUrl != [NSNull null] && [certificateUrl length] > 0) {
+                NSURL * certificateNSURL = [[NSURL alloc] initWithString: certificateUrl];
+                NSURL * licenseNSURL = [[NSURL alloc] initWithString: licenseUrl];
+                
+                _loaderDelegate = [[BetterPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL];
+                dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
+                dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
+                [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];
+            }
+            item = [AVPlayerItem playerItemWithAsset:asset];
+        }
     }
     
     if (@available(iOS 10.0, *) && overriddenDuration > 0) {
