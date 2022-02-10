@@ -6,9 +6,10 @@
 import 'dart:async';
 
 // Flutter imports:
-import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
+import 'package:better_player/better_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
 import 'method_channel_video_player.dart';
 
 /// The interface that implementations of video_player must implement.
@@ -165,6 +166,30 @@ abstract class VideoPlayerPlatform {
 
   Future<void> clearCache() {
     throw UnimplementedError('clearCache() has not been implemented.');
+  }
+
+  /// **Android only** Downloads a given network asset.
+  /// Provided data will be associated with this download and later returned by [downloadedAssets].
+  /// Streams the progress in percentages
+  Stream<double> downloadAsset({
+    required String url,
+    Map<String, dynamic> data = const <String, dynamic>{},
+    BetterPlayerDrmConfiguration? drmConfiguration,
+    BetterPlayerVideoFormat? videoFormat,
+  }) {
+    throw UnimplementedError('downloadAsset() has not been implemented.');
+  }
+
+  /// **Android only** Removes an existing downloaded asset
+  /// If asset does not exist, this call is ignored
+  Future<void> removeAsset(String url) {
+    throw UnimplementedError('removeAsset() has not been implemented.');
+  }
+
+  /// **Android only** Returns a Map of downloaded assets
+  /// where the key is the asset url and the value is the associated data
+  Future<Map<String, Map<String, dynamic>>> downloadedAssets() {
+    throw UnimplementedError('downloadedAssets() has not been implemented.');
   }
 
   /// Returns a widget displaying the video with a given textureID.

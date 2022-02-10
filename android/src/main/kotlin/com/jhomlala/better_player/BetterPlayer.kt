@@ -11,6 +11,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+
+import com.google.android.exoplayer2.MediaMetadata
+import com.google.android.exoplayer2.offline.Download
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource
 import android.os.Handler
 import android.os.Looper
 import com.jhomlala.better_player.DataSourceUtils.getUserAgent
@@ -191,6 +195,12 @@ internal class BetterPlayer(
         } else {
             dataSourceFactory = DefaultDataSourceFactory(context, userAgent)
         }
+
+        dataSourceFactory = CacheDataSource.Factory()
+            .setCache(BetterPlayerDownloadHelper.getDownloadCache(context))
+            .setUpstreamDataSourceFactory(dataSourceFactory)
+            .setCacheWriteDataSinkFactory(null)
+
         val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context)
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
@@ -442,32 +452,36 @@ internal class BetterPlayer(
         cacheKey: String?,
         context: Context
     ): MediaSource {
-        val type: Int
-        if (formatHint == null) {
-            var lastPathSegment = uri.lastPathSegment
-            if (lastPathSegment == null) {
-                lastPathSegment = ""
-            }
-            type = Util.inferContentType(lastPathSegment)
+        val type = DataSourceUtils.getContentType(uri, formatHint)
+
+        var mediaItem: MediaItem?
+        val download = BetterPlayerDownloadHelper.getDownload(context, uri.toString())
+
+        if (download != null) {
+            mediaItem = MediaItem.Builder()
+                .setMediaId(download.request.id)
+                .setUri(download.request.uri)
+                .setCustomCacheKey(download.request.customCacheKey)
+                .setMimeType(download.request.mimeType)
+                .setStreamKeys(download.request.streamKeys)
+                .setDrmKeySetId(download.request.keySetId)
+                // TODO: detect DRM
+                .setDrmUuid(C.WIDEVINE_UUID)
+                .build()
         } else {
-            type = when (formatHint) {
-                FORMAT_SS -> C.TYPE_SS
-                FORMAT_DASH -> C.TYPE_DASH
-                FORMAT_HLS -> C.TYPE_HLS
-                FORMAT_OTHER -> C.TYPE_OTHER
-                else -> -1
+            val mediaItemBuilder = MediaItem.Builder()
+            mediaItemBuilder.setUri(uri)
+            if (cacheKey != null && cacheKey.length > 0) {
+                mediaItemBuilder.setCustomCacheKey(cacheKey)
             }
+            mediaItem = mediaItemBuilder.build()
         }
-        val mediaItemBuilder = MediaItem.Builder()
-        mediaItemBuilder.setUri(uri)
-        if (cacheKey != null && cacheKey.isNotEmpty()) {
-            mediaItemBuilder.setCustomCacheKey(cacheKey)
-        }
-        val mediaItem = mediaItemBuilder.build()
+
         var drmSessionManagerProvider: DrmSessionManagerProvider? = null
         if (drmSessionManager != null) {
             drmSessionManagerProvider = DrmSessionManagerProvider { drmSessionManager!! }
         }
+
         return when (type) {
             C.TYPE_SS -> SsMediaSource.Factory(
                 DefaultSsChunkSource.Factory(mediaDataSourceFactory),
@@ -821,10 +835,6 @@ internal class BetterPlayer(
 
     companion object {
         private const val TAG = "BetterPlayer"
-        private const val FORMAT_SS = "ss"
-        private const val FORMAT_DASH = "dash"
-        private const val FORMAT_HLS = "hls"
-        private const val FORMAT_OTHER = "other"
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
 

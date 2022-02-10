@@ -2,11 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import 'dart:async';
-import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
+import 'dart:convert';
+
+// Flutter imports:
+import 'package:better_player/better_player.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+
 import 'video_player_platform_interface.dart';
 
 const MethodChannel _channel = MethodChannel('better_player_channel');
@@ -416,6 +420,62 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           );
       }
     });
+  }
+
+  @override
+  Stream<double> downloadAsset({
+    required String url,
+    Map<String, dynamic> data = const <String, dynamic>{},
+    BetterPlayerDrmConfiguration? drmConfiguration,
+    BetterPlayerVideoFormat? videoFormat,
+  }) async* {
+    assert(
+      drmConfiguration == null ||
+          drmConfiguration.drmType == BetterPlayerDrmType.widevine ||
+          drmConfiguration.drmType == BetterPlayerDrmType.fairplay,
+      'Downloading assets with drm is only supported for widevine and fairplay.',
+    );
+
+    await _channel.invokeMethod<void>(
+      'downloadAsset',
+      <String, dynamic>{
+        'url': url,
+        'downloadData': jsonEncode(data),
+        'licenseUrl': drmConfiguration?.licenseUrl,
+        'certificateUrl': drmConfiguration?.certificateUrl,
+        'drmHeaders': drmConfiguration?.headers ?? {},
+        'formatHint': videoFormat == null ? null : describeEnum(videoFormat),
+      },
+    );
+
+    final downloadEvents = EventChannel(
+      'better_player_channel/downloadEvents$url',
+    );
+
+    yield* downloadEvents.receiveBroadcastStream().cast<double>();
+  }
+
+  @override
+  Future<void> removeAsset(String url) {
+    return _channel.invokeMethod<void>(
+      'removeAsset',
+      <String, dynamic>{
+        'url': url,
+      },
+    );
+  }
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> downloadedAssets() async {
+    final assets = await _channel.invokeMapMethod<String, String>(
+      'downloadedAssets',
+      <String, dynamic>{},
+    );
+
+    return assets?.map(
+          (k, v) => MapEntry(k, jsonDecode(v) as Map<String, dynamic>),
+        ) ??
+        const {};
   }
 
   @override

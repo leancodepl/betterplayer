@@ -190,19 +190,43 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   return transform;
 }
 
-- (void)setDataSourceAsset:(NSString*)asset withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int) overriddenDuration{
+- (void)setDataSourceAsset:(NSString*)asset withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int) overriddenDuration drmHeaders:(NSDictionary *)drmHeaders{
     NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
-    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders: @{} withCache: false cacheKey:cacheKey cacheManager:cacheManager overriddenDuration:overriddenDuration videoExtension: nil];
+    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders: @{} withCache: false cacheKey:cacheKey cacheManager:cacheManager overriddenDuration:overriddenDuration videoExtension: nil drmHeaders:drmHeaders];
 }
 
-- (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int) overriddenDuration videoExtension: (NSString*) videoExtension{
+- (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int) overriddenDuration videoExtension: (NSString*) videoExtension drmHeaders:(NSDictionary *)drmHeaders{
     _overriddenDuration = 0;
     if (headers == [NSNull null] || headers == NULL){
         headers = @{};
     }
+    if (drmHeaders == [NSNull null] || drmHeaders == NULL){
+        drmHeaders = @{};
+    }
+
+    if (url == nil) {
+      @throw [NSException
+          exceptionWithName:@"InvalidArgumentException"
+                    reason:@"Nil url passed passed to setDataSourceURL"
+                  userInfo:nil];
+    }
     
     AVPlayerItem* item;
-    if (useCache){
+
+    AVURLAsset *localAsset = [DownloadManager.sharedManager localAssetWithUrl:url];
+    
+    if (localAsset != nil) {
+      if (certificateUrl != [NSNull null] && licenseUrl != [NSNull null]) {
+        [ContentKeyManager.shared addRecipient:localAsset
+                                certificateUrl:certificateUrl
+                                    licenseUrl:licenseUrl
+                                      headers:drmHeaders];
+        [ContentKeyManager.shared requestPersistableContentKeysForUrl:url];
+      } else {
+        [ContentKeyManager.shared addRecipient:localAsset];
+      }
+      item = [AVPlayerItem playerItemWithAsset:localAsset];
+    } if (useCache){
         if (cacheKey == [NSNull null]){
             cacheKey = nil;
         }
@@ -221,6 +245,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
             dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
             [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];
+            [ContentKeyManager.shared addRecipient:asset certificateUrl:certificateUrl licenseUrl:licenseUrl headers:drmHeaders];
         }
         item = [AVPlayerItem playerItemWithAsset:asset];
     }
@@ -382,11 +407,26 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                 NSLog(item.error.debugDescription);
 
                 if (_eventSink != nil) {
+                  NSError *underlyingError = [item.error.userInfo objectForKey:@"NSUnderlyingError"];
+
+                  // -42799 - unsupported persistent key format
+                  // -42800 - expired persisten key
+                  if (underlyingError != [NSNull null] &&
+                      (underlyingError.code == -42799 ||
+                      underlyingError.code == -42800)) {
+                    _eventSink([FlutterError
+                        errorWithCode:@"InvalidPersistenKey"
+                              message:[@"Failed to load video: "
+                                          stringByAppendingString:
+                                              [item.error localizedDescription]]
+                              details:nil]);
+                  } else {
                     _eventSink([FlutterError
                                 errorWithCode:@"VideoError"
                                 message:[@"Failed to load video: "
                                          stringByAppendingString:[item.error localizedDescription]]
                                 details:nil]);
+                  }
                 }
                 break;
             case AVPlayerItemStatusUnknown:

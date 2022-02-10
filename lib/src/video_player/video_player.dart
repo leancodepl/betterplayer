@@ -5,6 +5,7 @@
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
+
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:better_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
@@ -175,7 +176,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     bool autoCreate = true,
   }) : super(VideoPlayerValue(duration: null)) {
     if (autoCreate) {
-      _create();
+      create();
     }
   }
 
@@ -198,7 +199,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   int? get textureId => _textureId;
 
   /// Attempts to open the given [dataSource] and load metadata about the video.
-  Future<void> _create() async {
+  Future<void> create() async {
+    if (_created) {
+      return;
+    }
     _textureId = await _videoPlayerPlatform.create(
       bufferingConfiguration: bufferingConfiguration,
     );

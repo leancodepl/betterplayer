@@ -307,6 +307,7 @@ bool _remoteCommandsInitialized = false;
             NSString* certificateUrl = dataSource[@"certificateUrl"];
             NSString* licenseUrl = dataSource[@"licenseUrl"];
             NSDictionary* headers = dataSource[@"headers"];
+            NSDictionary *drmHeaders = dataSource[@"drmHeaders"];
             NSString* cacheKey = dataSource[@"cacheKey"];
             NSNumber* maxCacheSize = dataSource[@"maxCacheSize"];
             NSString* videoExtension = dataSource[@"videoExtension"];
@@ -328,6 +329,9 @@ bool _remoteCommandsInitialized = false;
             if (headers == [NSNull null] || headers == NULL){
                 headers = @{};
             }
+            if (licenseUrl != [NSNull null]) {
+                licenseUrl = [licenseUrl stringByReplacingOccurrencesOfString:@"https" withString:@"skd"];
+            }
 
             if (assetArg) {
                 NSString* assetPath;
@@ -337,9 +341,9 @@ bool _remoteCommandsInitialized = false;
                 } else {
                     assetPath = [_registrar lookupKeyForAsset:assetArg];
                 }
-                [player setDataSourceAsset:assetPath withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl cacheKey:cacheKey cacheManager:_cacheManager overriddenDuration:overriddenDuration];
+                [player setDataSourceAsset:assetPath withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl cacheKey:cacheKey cacheManager:_cacheManager overriddenDuration:overriddenDuration drmHeaders:drmHeaders];
             } else if (uriArg) {
-                [player setDataSourceURL:[NSURL URLWithString:uriArg] withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl withHeaders:headers withCache: useCache cacheKey:cacheKey cacheManager:_cacheManager overriddenDuration:overriddenDuration videoExtension: videoExtension];
+                [player setDataSourceURL:[NSURL URLWithString:uriArg] withKey:key withCertificateUrl:certificateUrl withLicenseUrl: licenseUrl withHeaders:headers withCache: useCache cacheKey:cacheKey cacheManager:_cacheManager overriddenDuration:overriddenDuration videoExtension: videoExtension drmHeaders:drmHeaders];
             } else {
                 result(FlutterMethodNotImplemented);
             }
@@ -465,6 +469,54 @@ bool _remoteCommandsInitialized = false;
                     NSLog(@"Stop pre cache is not supported for given data source.");
                 }
             }
+            result(nil);
+        } else if ([@"downloadAsset" isEqualToString:call.method]) {
+            NSString *url = argsMap[@"url"];
+            NSString *downloadData = argsMap[@"downloadData"];
+            NSString *licenseUrl = argsMap[@"licenseUrl"];
+            NSString *certificateUrl = argsMap[@"certificateUrl"];
+            NSDictionary *drmHeaders = argsMap[@"drmHeaders"];
+
+            NSString *name = [NSString
+                stringWithFormat:@"better_player_channel/downloadEvents%@", url];
+            FlutterEventChannel *eventChannel =
+                [FlutterEventChannel eventChannelWithName:name
+                                          binaryMessenger:_messenger];
+
+            NSURL *licenseNSURL = nil;
+            if (licenseUrl != [NSNull null]) {
+              licenseNSURL = [NSURL
+                  URLWithString:[licenseUrl
+                                    stringByReplacingOccurrencesOfString:@"https"
+                                                              withString:@"skd"]];
+            }
+            NSURL *certificateNSURL = nil;
+            if (certificateUrl != [NSNull null]) {
+              certificateNSURL = [NSURL URLWithString:certificateUrl];
+            }
+            if (drmHeaders == [NSNull null]) {
+              drmHeaders = @{};
+            }
+
+            [DownloadManager.sharedManager download:[NSURL URLWithString:url]
+                                         dataString:downloadData
+                                         licenseUrl:licenseNSURL
+                                     certificateUrl:certificateNSURL
+                                         drmHeaders:drmHeaders
+                                       eventChannel:eventChannel
+                                             result:result];
+        } else if ([@"downloadedAssets" isEqualToString:call.method]) {
+          result([DownloadManager.sharedManager downloadedAssets]);
+        } else if ([@"removeAsset" isEqualToString:call.method]) {
+            NSString *url = argsMap[@"url"];
+
+              // TODO: this handling is wrong, we should first check whether downloading is happening already
+            NSDictionary *kidMap =
+                [NSUserDefaults.standardUserDefaults dictionaryForKey:@"kid_map"];
+            NSString *kid = [kidMap valueForKey:url];
+            [ContentKeyManager.shared deletePeristableContentKeyWithKid:kid];
+
+            [DownloadManager.sharedManager deleteAsset:[NSURL URLWithString:url]];
             result(nil);
         } else {
             result(FlutterMethodNotImplemented);

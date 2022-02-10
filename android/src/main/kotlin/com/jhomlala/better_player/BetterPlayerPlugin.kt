@@ -26,6 +26,10 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.view.TextureRegistry
 import java.lang.Exception
 import java.util.HashMap
+import com.google.android.exoplayer2.util.Util
+import com.google.android.exoplayer2.*
+import io.flutter.plugin.common.EventChannel.EventSink
+import java.io.IOException
 
 /**
  * Android platform implementation of the VideoPlayerPlugin.
@@ -124,6 +128,9 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             PRE_CACHE_METHOD -> preCache(call, result)
             STOP_PRE_CACHE_METHOD -> stopPreCache(call, result)
             CLEAR_CACHE_METHOD -> clearCache(result)
+            DOWNLOAD_ASSET_METHOD -> downloadAsset(call, result)
+            REMOVE_ASSET_METHOD -> removeAsset(call, result)
+            GET_DOWNLOADED_ASSETS_METHOD -> getDownloadedAssets(result)
             else -> {
                 val textureId = (call.argument<Any>(TEXTURE_ID_PARAMETER) as Number?)!!.toLong()
                 val player = videoPlayers[textureId]
@@ -339,6 +346,85 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         BetterPlayer.stopPreCache(flutterState!!.applicationContext, url, result)
     }
 
+
+    private fun downloadAsset(call: MethodCall, result: MethodChannel.Result) {
+        val url = call.argument<String>(URL_PARAMETER)!!
+        val downloadData = call.argument<String>(DOWNLOAD_DATA_PARAMETER)!!
+        val licenseUrl = call.argument<String>(LICENSE_URL_PARAMETER)
+        val formatHint = call.argument<String>(FORMAT_HINT_PARAMETER)
+        val drmHeaders = call.argument<Map<String, String>>(DRM_HEADERS_PARAMETER)
+
+        val eventChannel =
+            EventChannel(flutterState!!.binaryMessenger, DOWNLOAD_EVENTS_CHANNEL + url)
+
+        val mediaItemBuilder = MediaItem.Builder()
+            .setUri(url)
+            // TODO: check if it is even needed
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(url).build())
+            .setMimeType(
+                Util.getAdaptiveMimeTypeForContentType(
+                    DataSourceUtils.getContentType(
+                        url,
+                        formatHint
+                    )
+                )
+            )
+
+        if (licenseUrl != null) {
+            mediaItemBuilder
+                .setDrmLicenseUri(licenseUrl)
+                .setDrmUuid(C.WIDEVINE_UUID)
+                .setDrmLicenseRequestHeaders(drmHeaders)
+        }
+
+
+        val eventSink = QueuingEventSink()
+
+        eventChannel.setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(o: Any?, sink: EventSink) {
+                eventSink.setDelegate(sink)
+            }
+
+            override fun onCancel(o: Any?) {
+                eventSink.setDelegate(null)
+            }
+        })
+
+        BetterPlayerDownloadHelper.addDownload(
+            flutterState!!.applicationContext,
+            mediaItemBuilder.build(),
+            eventSink,
+            downloadData,
+            { result.success(null) }
+        )
+    }
+
+
+    private fun removeAsset(call: MethodCall, result: MethodChannel.Result) {
+        val url = call.argument<String>(URL_PARAMETER)!!
+
+        BetterPlayerDownloadHelper.removeDownload(flutterState!!.applicationContext, url)
+
+        result.success(null)
+    }
+
+
+    private fun getDownloadedAssets(result: MethodChannel.Result) {
+        try {
+            val downloads =
+                BetterPlayerDownloadHelper.listDownloads(flutterState!!.applicationContext)
+
+            var downloadsMap = LinkedHashMap<String, String>()
+            for (d in downloads) {
+                downloadsMap.put(d.request.id, Util.fromUtf8Bytes(d.request.data))
+            }
+
+            result.success(downloadsMap)
+        } catch (e: IOException) {
+            result.error("failed to get downloads index", e.message, e)
+        }
+    }
+
     private fun clearCache(result: MethodChannel.Result) {
         BetterPlayer.clearCache(flutterState!!.applicationContext, result)
     }
@@ -389,6 +475,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             videoPlayers.valueAt(index).disposeRemoteNotifications()
         }
     }
+
     @Suppress("UNCHECKED_CAST")
     private fun <T> getParameter(parameters: Map<String, Any?>?, key: String, defaultValue: T): T {
         if (parameters!!.containsKey(key)) {
@@ -484,6 +571,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         private const val TAG = "BetterPlayerPlugin"
         private const val CHANNEL = "better_player_channel"
         private const val EVENTS_CHANNEL = "better_player_channel/videoEvents"
+        private const val DOWNLOAD_EVENTS_CHANNEL = "better_player_channel/downloadEvents"
         private const val DATA_SOURCE_PARAMETER = "dataSource"
         private const val KEY_PARAMETER = "key"
         private const val HEADERS_PARAMETER = "headers"
@@ -512,6 +600,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         private const val DRM_HEADERS_PARAMETER = "drmHeaders"
         private const val DRM_CLEARKEY_PARAMETER = "clearKey"
         private const val MIX_WITH_OTHERS_PARAMETER = "mixWithOthers"
+        private const val DOWNLOAD_DATA_PARAMETER = "downloadData"
         const val URL_PARAMETER = "url"
         const val PRE_CACHE_SIZE_PARAMETER = "preCacheSize"
         const val MAX_CACHE_SIZE_PARAMETER = "maxCacheSize"
@@ -545,5 +634,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         private const val DISPOSE_METHOD = "dispose"
         private const val PRE_CACHE_METHOD = "preCache"
         private const val STOP_PRE_CACHE_METHOD = "stopPreCache"
+        private const val DOWNLOAD_ASSET_METHOD = "downloadAsset"
+        private const val REMOVE_ASSET_METHOD = "removeAsset"
+        private const val GET_DOWNLOADED_ASSETS_METHOD = "downloadedAssets"
     }
 }
