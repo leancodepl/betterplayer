@@ -539,7 +539,14 @@ final class BetterPlayer {
 
             @Override
             public void onPlayerError(@NonNull final ExoPlaybackException error) {
-                eventSink.error("VideoError", "Video player had error " + error, null);
+                boolean isSourceError = error.type == ExoPlaybackException.TYPE_SOURCE;
+
+                if (isSourceError) {
+                    eventSink.error("SourceError", "Source error: " + error, error);
+                }
+                else {
+                    eventSink.error("VideoError", "Video player had error: " + error, error);
+                }
             }
         });
 
