@@ -653,7 +653,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                                message:@"Speed must be >= 0.0 and <= 2.0"
                                details:nil]);
 // Fix from: https://github.com/jhomlala/betterplayer/issues/574#issuecomment-879657453
-  } else if ((speed > 1.0) || (speed < 1.0))) {
+  } else if ((speed > 1.0) || (speed < 1.0)) {
     _playerRate = speed;
     result(nil);
   } else {
