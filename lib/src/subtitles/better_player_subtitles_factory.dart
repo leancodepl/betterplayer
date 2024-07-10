@@ -5,10 +5,8 @@ import 'dart:io';
 // Project imports:
 import 'package:better_player/better_player.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
-import 'package:better_player/src/subtitles/better_player_subtitles_source.dart';
 
 import 'better_player_subtitle.dart';
-import 'better_player_subtitles_source_type.dart';
 
 class BetterPlayerSubtitlesFactory {
   static Future<List<BetterPlayerSubtitle>> parseSubtitles(

@@ -11,12 +11,10 @@ import 'package:better_player/src/configuration/better_player_buffering_configur
 import 'package:better_player/src/video_player/video_player_platform_interface.dart';
 
 // Flutter imports:
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // Package imports:
-import 'package:meta/meta.dart';
 import 'package:pedantic/pedantic.dart';
 
 final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
