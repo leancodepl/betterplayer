@@ -4,15 +4,12 @@
 
 // Dart imports:
 import 'dart:async';
-import 'dart:ui';
 
 // Flutter imports:
 import 'package:better_player/better_player.dart';
-import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 // Package imports:
-import 'package:meta/meta.dart' show visibleForTesting;
 
 import 'method_channel_video_player.dart';
 

@@ -4,19 +4,7 @@ import 'dart:io';
 
 // Project imports:
 import 'package:better_player/better_player.dart';
-import 'package:better_player/src/asms/better_player_asms_audio_track.dart';
-import 'package:better_player/src/asms/better_player_asms_data_holder.dart';
-import 'package:better_player/src/asms/better_player_asms_subtitle.dart';
-import 'package:better_player/src/asms/better_player_asms_track.dart';
-import 'package:better_player/src/asms/better_player_asms_utils.dart';
-import 'package:better_player/src/configuration/better_player_configuration.dart';
 import 'package:better_player/src/configuration/better_player_controller_event.dart';
-import 'package:better_player/src/configuration/better_player_drm_type.dart';
-import 'package:better_player/src/configuration/better_player_event.dart';
-import 'package:better_player/src/configuration/better_player_event_type.dart';
-import 'package:better_player/src/configuration/better_player_translations.dart';
-import 'package:better_player/src/configuration/better_player_video_format.dart';
-import 'package:better_player/src/core/better_player_controller_provider.dart';
 
 // Flutter imports:
 import 'package:better_player/src/core/better_player_utils.dart';
@@ -1226,7 +1214,7 @@ class BetterPlayerController {
       return Future.error(
           "stopPreCache is currently only supported on Android.");
     }
-    return VideoPlayerController?.stopPreCache(betterPlayerDataSource.url);
+    return VideoPlayerController.stopPreCache(betterPlayerDataSource.url);
   }
 
   /// Add controller internal event.

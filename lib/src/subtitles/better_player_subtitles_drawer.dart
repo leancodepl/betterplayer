@@ -4,8 +4,6 @@ import 'dart:async';
 // Project imports:
 import 'package:better_player/better_player.dart';
 import 'package:better_player/src/subtitles/better_player_subtitle.dart';
-import 'package:better_player/src/subtitles/better_player_subtitles_configuration.dart';
-import 'package:better_player/src/video_player/video_player.dart';
 
 // Flutter imports:
 import 'package:flutter/material.dart';
