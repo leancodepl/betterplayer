@@ -542,9 +542,8 @@ final class BetterPlayer {
                 boolean isSourceError = error.type == ExoPlaybackException.TYPE_SOURCE;
 
                 if (isSourceError) {
-                    eventSink.error("SourceError", "Source error: " + error, error);
-                }
-                else {
+                    eventSink.error("SourceError", "Source error: " + error + " error source exception:" + error.getSourceException() + " error message: " + error.getMessage() + " error stackTrace " + Arrays.toString(error.getStackTrace()), error);
+                } else {
                     eventSink.error("VideoError", "Video player had error: " + error, error);
                 }
             }
