@@ -463,16 +463,22 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             [item.error.userInfo objectForKey:@"NSUnderlyingError"];
 
         // -42799 - unsupported persistent key format
-        // -42800 - expired persisten key
+        // -42800 - expired persistent key
         if (underlyingError != [NSNull null] &&
             (underlyingError.code == -42799 ||
              underlyingError.code == -42800)) {
           _eventSink([FlutterError
-              errorWithCode:@"InvalidPersistenKey"
+              errorWithCode:@"InvalidPersistentKey"
                     message:[@"Failed to load video: "
                                 stringByAppendingString:
                                     [item.error localizedDescription]]
                     details:nil]);
+        } else if (underlyingError != [NSNull null] && underlyingError.code == -1009) {
+            _eventSink([FlutterError
+                errorWithCode:@"NetworkError"
+                      message:[@"Failed to load video: "
+                                  stringByAppendingString:[item.error localizedDescription]]
+                      details:nil]);
         } else {
           _eventSink([FlutterError
               errorWithCode:@"VideoError"
